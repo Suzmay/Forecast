@@ -1,0 +1,840 @@
+html, body {
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+/* 主容器布局 */
+.forecast-container {
+    min-height: 100vh;
+    height: 100vh;
+    width: 100vw;
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--main-blue2), var(--main-pink1)) fixed;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding-bottom: 320px;
+}
+
+/* 顶部选项布局：城市最左，天数居中 */
+.forecast-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-end;
+    width: 100vw;
+    max-width: 100vw;
+    margin-top: 3rem;
+    margin-bottom: 2rem;
+    position: relative;
+    z-index: 2;
+    gap: 0;
+    padding: 0 4vw;
+    padding-left: 20vw;
+}
+.city-option {
+    margin-left: 0;
+    margin-right: auto;
+}
+.days-option {
+    margin: 0 auto;
+    left: 0; right: 0;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+@media (max-width: 900px) {
+    .forecast-header {
+        padding: 0 2vw;
+    }
+}
+.forecast-title {
+    font-size: 3.5rem;
+    font-weight: bold;
+    margin: 0 3rem;
+    color: var(--item-bg);
+    background-size: cover;
+    -webkit-background-clip: text;
+    background-clip: text;
+    text-align: center;
+}
+.option {
+    font-size: 1.3rem;
+    background: var(--panel-bg);
+    border-radius: 18px;
+    padding: 0.7rem 1.5rem;
+    margin: 0 1rem;
+    box-shadow: var(--form-shadow);
+    cursor: pointer;
+    position: relative;
+    transition: box-shadow 0.3s, background 0.2s, color 0.2s;
+    animation: floatOptionRandom 4s infinite alternate;
+    color: var(--text-main);
+    border: 2px solid transparent;
+}
+@keyframes floatOptionLR {
+    0% { transform: translateY(0) translateX(0) scale(1); }
+    25% { transform: translateY(-8px) translateX(-10px) scale(1.04); }
+    50% { transform: translateY(-12px) translateX(10px) scale(1.07); }
+    75% { transform: translateY(-8px) translateX(-10px) scale(1.04); }
+    100% { transform: translateY(0) translateX(0) scale(1); }
+}
+@keyframes floatOptionRandom {
+    0% { transform: translateY(0) translateX(0) scale(1); }
+    15% { transform: translateY(-10px) translateX(-12px) scale(1.04) rotate(-2deg); }
+    30% { transform: translateY(-18px) translateX(8px) scale(1.07) rotate(2deg); }
+    50% { transform: translateY(-8px) translateX(18px) scale(1.03) rotate(-1deg); }
+    70% { transform: translateY(-16px) translateX(-8px) scale(1.06) rotate(1deg); }
+    100% { transform: translateY(0) translateX(0) scale(1); }
+}
+
+/* 城市按钮点击和hover（蓝色） */
+.city-option:focus, .city-option.active, .city-option.selected,
+.city-option:hover {
+    animation-play-state: paused;
+    background: var(--main-blue2);
+    color: var(--item-bg);
+    box-shadow: 0 0 0 0.25rem var(--main-blue3);
+    border: 2px solid var(--main-blue2);
+    font-weight: bold;
+}
+/* 天数按钮点击和hover（粉色） */
+.days-option:focus, .days-option.active, .days-option.selected,
+.days-option:hover {
+    animation-play-state: paused;
+    background: var(--main-pink2);
+    color: var(--item-bg);
+    box-shadow: 0 0 0 0.25rem var(--main-pink3);
+    border: 2px solid var(--main-pink2);
+    font-weight: bold;
+}
+
+/* 半圆底端固定底部，clip-path裁剪为真正的半圆 */
+.forecast-semicircle {
+    width: 100vw;
+    max-width: 100vw;
+    height: 320px;
+    background: var(--form-bg);
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    overflow: visible;
+    z-index: 10;
+    cursor: pointer;
+    filter: brightness(0.95);
+    transition: filter 0.2s;
+    clip-path: ellipse(50% 100% at 50% 100%);
+}
+.forecast-semicircle:hover,
+.forecast-semicircle.selected {
+    filter: brightness(0.85);
+}
+@media (max-width: 900px) {
+    .forecast-semicircle {
+        height: 38vw;
+    }
+}
+
+/* 标题上半部分不被裁剪，允许溢出显示 */
+.forecast-semicircle {
+    overflow: visible;
+}
+/* 天穹标题始终位于半圆形上方一半重叠 */
+.forecast-title-on-semicircle {
+    position: absolute;
+    left: 50vw;
+    bottom: 320px;
+    top: auto;
+    transform: translateX(-50%) translateY(50%);
+    font-size: 6rem;
+    font-weight: bold;
+    color: var(--accent-green);
+    letter-spacing: 0.15em;
+    z-index: 12;
+    pointer-events: none;
+    text-shadow: 0 2px 16px rgba(0,0,0,0.18);
+    line-height: 1;
+    overflow: visible;
+}
+@media (max-width: 900px) {
+    .forecast-title-on-semicircle {
+        font-size: 3rem;
+        bottom: 38vw;
+    }
+}
+
+/* 详情界面 */
+.forecast-detail {
+    width: 100vw;
+    max-width: 900px;
+    min-height: 0;
+    background: rgba(255,255,255,0.7);
+    position: relative;
+    margin: 0 auto;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    animation: fadeIn 0.5s;
+    box-shadow: 0 2px 16px 0 rgba(0,0,0,0.08);
+    border-radius: 24px;
+    padding: 2.5rem 2rem 2rem 2rem;
+}
+.detail-semicircle {
+    width: 500px;
+    height: 250px;
+    background: var(--panel-bg);
+    border-radius: 0 0 500px 500px;
+    margin: 0 auto;
+    margin-top: 2.5rem;
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+.detail-options {
+    display: flex;
+    justify-content: center;
+    gap: 2.5rem;
+    margin-top: 1.2rem;
+    font-size: 1.1rem;
+}
+.detail-city, .detail-days {
+    background: var(--item-bg);
+    border-radius: 12px;
+    padding: 0.5rem 1.2rem;
+}
+.detail-lines {
+    width: 100%;
+    height: 60px;
+    /* 可用SVG或伪元素画线 */
+}
+.detail-data {
+    width: 90vw;
+    max-width: 900px;
+    margin: 2rem auto 0 auto;
+    background: var(--form-bg);
+    border-radius: 18px;
+    box-shadow: var(--form-shadow);
+    padding: 2rem 2.5rem;
+}
+.detail-7days, .detail-1day {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    width: 1200px;
+    padding: 0 2rem;
+    box-sizing: border-box;
+    display: inline-block;
+    white-space: nowrap;
+    overflow-x: auto;
+    max-width: 100vw;
+    padding-top: 2.5rem;
+    padding-bottom: 2.5rem;
+}
+
+/* 直线连接城市、天数和标题 */
+.connect-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.province-option.selected, .province-option:hover {
+    animation-play-state: paused;
+    background: var(--main-blue2);
+    color: var(--item-bg);
+    box-shadow: 0 0 0 0.25rem var(--main-blue3);
+    border: 2px solid var(--main-blue2);
+    font-weight: bold;
+}
+
+/* 省份下拉样式和城市下拉样式 */
+.province-dropdown, .city-dropdown {
+    position: absolute;
+    min-width: 180px;
+    background: var(--form-bg);
+    border-radius: 12px;
+    box-shadow: var(--form-shadow);
+    z-index: 20;
+    padding: 0.5rem 0.7rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+#provinceSearch, #citySearch {
+    width: 100%;
+    border: 2px solid var(--main-blue3);
+    border-radius: 8px;
+    padding: 0.4rem 0.7rem;
+    font-size: 1.1rem;
+    outline: none;
+    box-sizing: border-box;
+}
+#provinceDropdownList, #cityDropdownList {
+    max-height: 180px;
+    overflow-y: auto;
+}
+.province-dropdown-item, .city-dropdown-item {
+    border-radius: 24px;
+    border: none;
+    background: transparent;
+    color: var(--main-blue-3);
+    font-size: 1.2rem;
+    padding: 0.7rem 1.5rem;
+    margin: 0.2rem 0;
+    cursor: pointer;
+    transition: color 0.2s;
+    box-shadow: none;
+    display: flex;
+    align-items: center;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.province-dropdown-item:hover, .province-dropdown-item.selected,
+.city-dropdown-item:hover, .city-dropdown-item.selected {
+    background: var(--main-blue2);
+    color: var(--item-bg);
+    box-shadow: none;
+    border: none;
+}
+
+.bubble-option {
+    font-size: 1.3rem;
+    background: var(--main-pink1);
+    border-radius: 18px;
+    padding: 0.7rem 1.5rem;
+    margin: 0 1rem;
+    box-shadow: var(--form-shadow);
+    cursor: pointer;
+    position: absolute;
+    transition: box-shadow 0.3s, background 0.2s, color 0.2s;
+    animation: floatOptionRandom 4s infinite alternate;
+    color: var(--item-bg);
+    border: 2px solid var(--main-pink2);
+    font-weight: bold;
+    z-index: 20;
+    min-width: 120px;
+    min-height: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 24px;
+    gap: 20px;
+    /* 保留动画和布局属性 */
+}
+.bubble-option .bubble-days {
+    border-radius: 20px;
+    padding: 8px 24px;
+    margin: 8px 0;
+    background: var(--item-bg);
+    color: var(--text-main);
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+.bubble-option .bubble-days:hover, .bubble-option .bubble-days.selected {
+    background: var(--main-pink2);
+    color: var(--item-bg);
+}
+
+.result1-fixed-options {
+    position: fixed;
+    left: 50vw;
+    bottom: 32px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 2.5rem;
+    background: rgba(255,255,255,0.85);
+    border-radius: 18px;
+    box-shadow: 0 2px 16px 0 rgba(0,0,0,0.08);
+    padding: 0.8rem 2.5rem;
+    font-size: 1.2rem;
+    z-index: 40;
+    align-items: center;
+}
+.fixed-city, .fixed-days {
+    color: var(--main-blue3);
+    font-weight: bold;
+    letter-spacing: 0.05em;
+}
+
+/* 一天界面隐藏顶部选项和连线 */
+#result1View ~ #queryHeader,
+#result1View ~ #connectLine,
+#result1View ~ #cityToProvinceLine,
+#result1View ~ #cityBubbleFloatContainer {
+    display: none !important;
+}
+
+/* 一天界面下调整半圆和标题位置 */
+#result1View ~ .forecast-semicircle {
+    bottom: -60px;
+}
+#result1View ~ .forecast-title-on-semicircle {
+    bottom: 120px;
+    transform: translateX(-50%) translateY(0);
+}
+
+.result-title {
+    position: fixed;
+    left: 50vw;
+    bottom: 80px;
+    transform: translateX(-50%);
+    font-size: 6rem;
+    font-weight: bold;
+    color: var(--accent-yellow);
+    letter-spacing: 0.15em;
+    z-index: 30;
+    pointer-events: none;
+    text-shadow: 0 2px 16px rgba(0,0,0,0.18);
+    line-height: 1;
+    overflow: visible;
+}
+.result-semicircle {
+    width: 100vw;
+    max-width: 100vw;
+    height: 260px;
+    background: var(--form-bg);
+    position: fixed;
+    left: 0;
+    bottom: -60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    overflow: visible;
+    z-index: 10;
+    clip-path: ellipse(50% 100% at 50% 100%);
+    filter: brightness(0.95);
+    transition: filter 0.2s;
+}
+.result-semicircle:hover,
+.result-semicircle.selected {
+    filter: brightness(0.85);
+}
+@media (max-width: 900px) {
+    .result-title {
+        font-size: 3rem;
+        bottom: 38vw;
+    }
+    .result-semicircle {
+        height: 38vw;
+    }
+}
+
+@media (max-width: 900px) {
+    .forecast-semicircle {
+        max-width: 100vw;
+        height: 38vw;
+    }
+    .forecast-title-on-semicircle {
+        font-size: 2rem;
+        top: -1.2rem;
+    }
+    .forecast-container {
+        padding-bottom: 38vw;
+    }
+    .detail-data {
+        padding: 1rem 0.5rem;
+    }
+} 
+
+#queryView .forecast-header {
+    margin-top: 10rem;
+} 
+
+#resultView {
+    position: relative;
+}
+.info-cards-container {
+    position: fixed;
+    left: 50vw;
+    top: -160px;
+    bottom: auto;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 1.2rem;
+    z-index: 15;
+    width: max-content;
+    min-width: 0;
+    pointer-events: none;
+}
+.info-card {
+    position: relative;
+    width: 120px;
+    height: 200px;
+    background: var(--form-bg);
+    border-radius: 18px 18px 24px 24px;
+    box-shadow: var(--form-shadow);
+    transition: transform 0.35s cubic-bezier(.4,2,.6,1), height 0.35s, z-index 0s, box-shadow 0.2s;
+    overflow: hidden;
+    cursor: pointer;
+    z-index: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: auto;
+    justify-content: flex-end;
+    margin: 0;
+    background: var(--form-bg);
+    color: var(--text-main);
+}
+.info-card .info-card-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: var(--main-pink3);
+    text-align: center;
+    padding: 0.5rem 0;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: none;
+    color: var(--main-pink3);
+}
+.info-card .info-card-content {
+    opacity: 0;
+    max-height: 0;
+    transition: opacity 0.25s, max-height 0.25s;
+    padding: 0 1.2rem;
+    font-size: 1.05rem;
+    color: var(--text-main);
+    text-align: left;
+    width: 100%;
+    box-sizing: border-box;
+}
+/* 初始状态：所有卡牌紧凑横向堆叠，只露出标题 */
+.info-card { transform: translateY(0); }
+
+/* 半展开状态：卡牌下移，反色，信息概览 */
+.info-card.peek {
+    height: 120px;
+    box-shadow: 0 8px 32px 0 rgba(0,0,0,0.16);
+    z-index: 10;
+    transform: translateY(60px);
+    background: var(--main-pink3);
+    color: #fff;
+}
+.info-card.peek .info-card-title {
+    color: #fff;
+    background: var(--main-pink3);
+}
+.info-card.peek .info-card-content {
+    opacity: 0.85;
+    max-height: 60px;
+    padding-top: 0.5rem;
+}
+/* 全展开状态：卡牌上浮更多，内容全显 */
+.info-card.open {
+    height: 260px;
+    box-shadow: 0 12px 48px 0 rgba(0,0,0,0.22);
+    z-index: 20;
+    transform: translateY(-180px);
+}
+.info-card.open .info-card-content {
+    opacity: 1;
+    max-height: 200px;
+    padding-top: 0.5rem;
+}
+@media (max-width: 600px) {
+    .info-card { width: 60vw; min-width: 0; }
+} 
+
+.info-tab-bar {
+    position: fixed;
+    top: 0;
+    left: 50vw;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 1.2rem;
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    z-index: 40;
+    width: max-content;
+}
+.info-tab {
+    min-width: 120px;
+    padding: 0.7rem 2.2rem;
+    background: var(--form-bg);
+    color: var(--main-pink3);
+    border-radius: 18px 18px 24px 24px;
+    box-shadow: 0 2px 16px 0 rgba(0,0,0,0.08);
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.3s;
+    border: 2px solid transparent;
+    position: relative;
+    z-index: 1;
+}
+.info-tab:hover, .info-tab.active {
+    background: var(--main-pink3);
+    color: #fff;
+    box-shadow: 0 8px 32px 0 rgba(0,0,0,0.16);
+    border: 2px solid var(--main-pink3);
+    z-index: 22;
+}
+.info-tab.peek {
+    background: var(--main-pink3);
+    color: #fff;
+    box-shadow: 0 8px 32px 0 rgba(0,0,0,0.16);
+    z-index: 22;
+}
+.info-tab-outline {
+    z-index: 50;
+    background: var(--form-bg);
+    border-radius: 12px;
+    padding: 0.5em 1.5em;
+    box-shadow: 0 2px 12px 0 rgba(0,0,0,0.08);
+    margin-bottom: 1.5rem;
+    display: block;
+    pointer-events: none;
+}
+.info-tab-content {
+    display: none;
+    width: auto;
+    min-width: 600px;
+    max-width: 1000px;
+    margin: 0 auto;
+    text-align: left;
+    align-items: flex-start;
+    justify-content: flex-start;
+}
+.info-tab-content.active {
+    display: block;
+} 
+
+.forecast-detail.detail-1day .info-tab-content > div {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    font-size: 1.13rem;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-weight: 500;
+    line-height: 1.7;
+    text-align: left;
+    margin-bottom: 0.7rem;
+    letter-spacing: 0.01em;
+}
+.forecast-detail.detail-1day .info-tab-content .detail-label {
+    color: var(--text-main);
+    font-size: 1.13rem;
+    font-weight: 500;
+    margin-right: 0.3em;
+    min-width: unset;
+    flex-shrink: 0;
+    font-weight: bold;
+}
+.forecast-detail.detail-1day .info-tab-content span {
+    font-size: 1.13rem;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-weight: 500;
+    line-height: 1.7;
+}
+.forecast-detail.detail-1day .detail-poem {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-style: italic;
+    color: var(--text-secondary);
+    font-size: 0.98rem;
+    text-align: center;
+    margin-top: 1.2rem;
+    margin-bottom: 0.7rem;
+} 
+
+/* 7天界面左侧气象要素按钮风格，等大且固定最左侧，垂直居中 */
+.seven-days-layout {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+.seven-days-icons {
+    min-width: 120px;
+    max-width: 120px;
+    width: 120px;
+    position: fixed;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+.seven-days-icons .icon-btn {
+    width: 100%;
+    min-width: 100px;
+    max-width: 120px;
+    height: 64px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    background: var(--panel-bg);
+    border-radius: 18px;
+    padding: 0.7rem 0.2rem;
+    margin: 0.2rem 0;
+    box-shadow: var(--form-shadow);
+    color: var(--text-main);
+    border: 2px solid transparent;
+    transition: box-shadow 0.3s, background 0.2s, color 0.2s;
+    font-weight: 500;
+}
+.seven-days-icons .icon-btn.active,
+.seven-days-icons .icon-btn:focus,
+.seven-days-icons .icon-btn:hover {
+    background: var(--main-blue2);
+    color: var(--item-bg);
+    box-shadow: 0 0 0 0.25rem var(--main-blue3);
+    border-color: var(--main-blue2);
+}
+.seven-days-icons .icon-btn:active {
+    background: var(--main-pink3);
+    color: var(--item-bg);
+    border-color: var(--main-pink3);
+}
+/* 让右侧内容有足够左边距 */
+.seven-days-detail {
+    position: fixed;
+    top: 38%;
+    left: 50%;
+    transform: translate(-50%, -38%);
+    margin-left: 0;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-width: 1200px;
+    box-sizing: border-box;
+    z-index: 5;
+    background: var(--panel-bg);
+    border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.10);
+    padding: 2.5rem 2.5rem 2rem 2.5rem;
+}
+@media (max-width: 900px) {
+    .seven-days-detail {
+        position: static;
+        top: auto;
+        left: auto;
+        transform: none;
+        min-height: 120px;
+        padding: 1.2rem 0.5rem 1rem 0.5rem;
+    }
+}
+.seven-days-chart-area {
+    width: 100%;
+    max-width: 480px;
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto;
+}
+@media (max-width: 900px) {
+    .seven-days-detail {
+        margin-left: 0;
+        min-height: 320px;
+    }
+    .seven-days-chart-area {
+        max-width: 98vw;
+    }
+} 
+
+/* 7天界面顶部日期天气选项卡美化，固定顶部，粉色配色 */
+.seven-days-top {
+    position: fixed;
+    top: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    background: rgba(255,255,255,0.95);
+    border-radius: 18px;
+    box-shadow: 0 2px 16px rgba(255, 0, 128, 0.08);
+    padding: 0.5rem 1.5rem;
+    gap: 1.2rem;
+    min-width: 600px;
+    max-width: 90vw;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.seven-day-tab {
+    background: var(--main-pink1);
+    color: var(--main-pink3);
+    border: 2px solid var(--main-pink2);
+    border-radius: 14px;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(255,0,128,0.06);
+    transition: background 0.2s, color 0.2s, border 0.2s;
+    min-width: 150px;
+    min-height: 80px;
+    font-size: 1.15rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin: 0 4px;
+    padding: 0.5rem 0.5rem;
+}
+.seven-day-tab.active,
+.seven-day-tab:focus,
+.seven-day-tab:hover {
+    background: var(--main-pink3);
+    color: #fff;
+    border-color: var(--main-pink3);
+}
+.seven-day-tab img {
+    filter: drop-shadow(0 2px 4px rgba(255,0,128,0.10));
+}
+@media (max-width: 900px) {
+    .seven-days-top {
+        min-width: 0;
+        max-width: 100vw;
+        padding: 0.3rem 0.2rem;
+        top: 0;
+        border-radius: 0 0 18px 18px;
+    }
+    .seven-day-tab {
+        min-width: 80px;
+        min-height: 56px;
+        font-size: 1rem;
+    }
+} 

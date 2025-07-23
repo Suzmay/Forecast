@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="showWeather7070" />
+        <module name="eureka8888" />
+        <module name="eureka9999" />
+        <module name="getCityList8080" />
+        <module name="getProvinceList8090" />
+        <module name="commonInterface" />
+      </profile>
+    </annotationProcessing>
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="commonInterface" options="-parameters" />
+      <module name="eureka8888" options="-parameters" />
+      <module name="eureka9999" options="-parameters" />
+      <module name="getCityList8080" options="-parameters" />
+      <module name="getProvinceList8090" options="-parameters" />
+      <module name="parent" options="" />
+      <module name="showWeather7070" options="-parameters" />
+    </option>
+  </component>
+</project>

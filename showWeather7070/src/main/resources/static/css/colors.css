@@ -1,0 +1,24 @@
+:root {
+  /* 主色（粉蓝） */
+  --main-pink1: #ffc8f0;
+  --main-pink2: #ffaddf;
+  --main-pink3: #ff8fb1;
+  --main-blue1: #c9f9ff;
+  --main-blue2: #a0e9ff;
+  --main-blue3: #81defa;
+
+  /* 强调色 */
+  --accent-pink: #ffaaa5;
+  --accent-yellow: #ffdcb9;
+  --accent-green: #a8e6cf;
+
+  /* 文字色 */
+  --text-main: #3a4f5f;
+  --text-secondary: #7b8d9a;
+
+  /* 背景色 */
+  --item-bg: #fff;
+  --form-bg: #f0faff;
+  --form-shadow: #000;
+  --panel-bg: #ffffffd9;
+} 
