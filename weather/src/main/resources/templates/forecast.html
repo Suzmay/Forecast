@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>天穹 - 天气查询系统</title>
+    <link rel="stylesheet" href="/css/colors.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="/js/anime.js" defer></script>
+    <!-- 引入marked.js用于Markdown渲染 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- 引入Chart.js用于绘制图表 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 引入Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+<script th:utext="'window.weatherdata = ' + ${weatherdataJson} + ';'" ></script>
+<div class="forecast-container">
+    <!-- 查询界面 -->
+    <div id="queryView" th:if="${weatherdata == null}">
+        <div class="forecast-header" id="queryHeader">
+            <div class="option city-option" id="cityOption" th:classappend="${selectedCityName} != '' ? ' selected' : ''">
+                <span th:text="${selectedCityName} != '' ? ${selectedCityName} : '城市'" id="cityOptionText"></span>
+            </div>
+            <div class="option days-option" id="daysOption" th:classappend="${selectedType == '7' or selectedType == '1'} ? ' selected' : ''">
+                <span th:text="${selectedType == '7'} ? '7天' : (${selectedType == '1'} ? '1天' : '天数')" id="daysOptionText"></span>
+            </div>
+            <div class="option province-option" id="provinceBubbleFloat" style="display:none;" tabindex="0">省份</div>
+            <div class="province-dropdown" id="provinceDropdown" style="display:none;">
+                <input type="text" id="provinceSearch" placeholder="搜索省份" autocomplete="off">
+                <div id="provinceDropdownList"></div>
+            </div>
+            <select id="cityId" name="cityId" style="display:none;">
+                <option value="">请选择查询城市</option>
+                <th:block th:each="city : ${cityList}">
+                    <option th:value="${city.cityId}" th:text="${city.city}" th:selected="${city.cityId} == ${selectedCityId}"></option>
+                </th:block>
+            </select>
+            <select id="type" name="type" style="display:none;">
+                <option value="1" th:selected="${selectedType == '1'}">1天</option>
+                <option value="7" th:selected="${selectedType == '7'}">7天</option>
+            </select>
+        </div>
+        <svg id="connectLine" class="connect-line" width="100vw" height="100vh" style="position:absolute;top:0;left:0;z-index:1;pointer-events:none;"></svg>
+        <svg id="cityToProvinceLine" class="connect-line" width="100vw" height="100vh" style="position:absolute;top:0;left:0;z-index:2;pointer-events:none;"></svg>
+        <div id="cityBubbleFloatContainer"></div>
+        <div class="forecast-title-on-semicircle" id="forecastTitleOnSemicircle">天穹</div>
+        <div class="forecast-semicircle clickable" id="forecastSemicircle">
+            <div class="weather-gif">
+                <video id="randomWeatherVideo" autoplay loop muted playsinline
+                    style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.5) translateY(150px); transform-origin: center center;">
+                    您的浏览器不支持 video 标签
+                </video>
+            </div>
+        </div>
+    </div>
+    <!-- 结果界面 -->
+    <div id="resultView" th:if="${weatherdata != null}">
+        <!-- 复制一份半圆和标题到结果界面 -->
+        <div class="forecast-title-on-semicircle result-title">天穹</div>
+        <!-- 统一半圆形部件 -->
+        <div class="forecast-semicircle result-semicircle">
+            <div class="weather-gif">
+                <video id="weatherVideo" autoplay loop muted playsinline
+                    style="width: 100%; height: 100%; object-fit: contain; transform: scale(1.5) translateY(150px); transform-origin: center center;">
+                    您的浏览器不支持 video 标签
+                </video>
+            </div>
+        </div>
+        <div id="result1View" th:if="${weatherdata.result != null and selectedType == '1'}">
+            <div class="info-tab-bar">
+                <div class="info-tab active" data-group="main">基本信息</div>
+                <div class="info-tab" data-group="temp">温度信息</div>
+                <div class="info-tab" data-group="wind">风信息</div>
+                <div class="info-tab" data-group="humidity">其他信息</div>
+                <div class="info-tab" data-group="astro">天文信息</div>
+            </div>
+            <div class="forecast-detail detail-1day">
+                <!-- 5个分组内容div，仅显示active分组 -->
+                <div class="info-tab-content active" data-group="main">
+                    <div><span class="detail-label">日期：</span><span th:text="${weatherdata.result.date + ' ' + weatherdata.result.week}"></span></div>
+                    <div><span class="detail-label">天气：</span><span th:text="${weatherdata.result.weather}"></span><img th:if="${weatherIconPath != null}" th:src="${weatherIconPath}" alt="天气图标" style="height: 32px; vertical-align: middle; margin-left: 10px;"/></div>
+                    <div><span class="detail-label">生活建议: </span><span th:text="${weatherdata.result.tips}"></span></div>
+                    <div class="detail-poem" th:if="${weatherdata.result.poem != null and !#strings.isEmpty(weatherdata.result.poem)}">&ldquo;<span th:text="${weatherdata.result.poem}"></span>&rdquo;</div>
+                </div>
+                <div class="info-tab-content" data-group="temp">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div><span class="detail-label">实时温度:</span><span th:text="${weatherdata.result.real}"></span></div>
+                            <div><span class="detail-label">最低:</span><span th:text="${weatherdata.result.lowest}"></span></div>
+                            <div><span class="detail-label">最高:</span><span th:text="${weatherdata.result.highest}"></span></div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="temperature-chart">
+                                <canvas id="temperatureChart" width="200" height="150"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="info-tab-content" data-group="wind">
+                    <div><span class="detail-label">风向:</span><span th:text="${weatherdata.result.wind}"></span></div>
+                    <div><span class="detail-label">风速:</span><span th:text="${weatherdata.result.windspeed}"></span></div>
+                    <div><span class="detail-label">风力:</span><span th:text="${weatherdata.result.windsc}"></span></div>
+                </div>
+                <div class="info-tab-content" data-group="humidity">
+                    <div><span class="detail-label">湿度:</span><span th:text="${weatherdata.result.humidity}"></span></div>
+                    <div><span class="detail-label">降水量:</span><span th:text="${weatherdata.result.pcpn}"></span></div>
+                    <div><span class="detail-label">紫外线指数:</span><span th:text="${weatherdata.result.uv_index}"></span></div>
+                    <div><span class="detail-label">能见度:</span><span th:text="${weatherdata.result.vis}"></span></div>
+                </div>
+                <div class="info-tab-content" data-group="astro">
+                    <div><span class="detail-label">日出时间:</span><span th:text="${weatherdata.result.sunrise}"></span></div>
+                    <div><span class="detail-label">日落时间:</span><span th:text="${weatherdata.result.sunset}"></span></div>
+                    <div><span class="detail-label">月升时间:</span><span th:text="${weatherdata.result.moonrise}"></span></div>
+                    <div><span class="detail-label">月落时间:</span><span th:text="${weatherdata.result.moondown}"></span></div>
+                </div>
+            </div>
+            <div class="result1-fixed-options">
+                <div class="fixed-city">城市：<span th:text="${selectedCityName}"></span></div>
+                <div class="fixed-days">天数：1天</div>
+            </div>
+        </div>
+        <div id="result7View" th:if="${weatherdata.result != null and selectedType == '7' and weatherdata.result.list != null}">
+            <div class="seven-days-layout d-flex flex-column align-items-center" style="min-height: 500px;">
+                <!-- 顶部日期和天气选项卡 -->
+                <div class="seven-days-top d-flex justify-content-center align-items-center mb-3" style="gap: 1.2rem;">
+                    <div th:each="day,idx : ${weatherdata.result.list}" class="seven-day-tab" th:classappend="${idx.index == 0} ? 'active' : ''" th:data-idx="${idx.index}">
+                        <div th:text="${day.date}" style="font-size: 1.05rem;"></div>
+                        <div th:text="${day.week}" style="font-size: 0.95rem; color: var(--main-blue2);"></div>
+                        <div class="mt-1 d-flex align-items-center justify-content-center">
+                            <span th:text="${day.weather}" style="font-size: 0.95rem;"></span>
+                            <img th:if="${day.weatherimg != null}" th:src="@{'/images/png/' + ${day.weatherimg}}" alt="天气图标" style="height: 22px; margin-left: 6px;"/>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex flex-row w-100 justify-content-center align-items-stretch" style="min-height: 350px;">
+                    <!-- 左侧气象要素图标区 -->
+                    <div class="seven-days-icons d-flex flex-column align-items-center justify-content-center me-4" style="gap: 1.2rem;">
+                        <button class="icon-btn btn btn-light mb-1 active" data-factor="real"><i class="bi bi-thermometer-half" style="font-size:2rem;"></i><div style="font-size:0.9rem;">实时温度</div></button>
+                        <button class="icon-btn btn btn-light mb-1" data-factor="lowest"><i class="bi bi-thermometer-snow" style="font-size:2rem;"></i><div style="font-size:0.9rem;">最低温度</div></button>
+                        <button class="icon-btn btn btn-light mb-1" data-factor="highest"><i class="bi bi-thermometer-sun" style="font-size:2rem;"></i><div style="font-size:0.9rem;">最高温度</div></button>
+                        <button class="icon-btn btn btn-light mb-1" data-factor="windspeed"><i class="bi bi-wind" style="font-size:2rem;"></i><div style="font-size:0.9rem;">风速</div></button>
+                        <button class="icon-btn btn btn-light mb-1" data-factor="humidity"><i class="bi bi-droplet" style="font-size:2rem;"></i><div style="font-size:0.9rem;">湿度</div></button>
+                        <button class="icon-btn btn btn-light mb-1" data-factor="pcpn"><i class="bi bi-cloud-rain" style="font-size:2rem;"></i><div style="font-size:0.9rem;">降水量</div></button>
+                        <button class="icon-btn btn btn-light mb-1" data-factor="uv_index"><i class="bi bi-sun" style="font-size:2rem;"></i><div style="font-size:0.9rem;">紫外线</div></button>
+                        <button class="icon-btn btn btn-light mb-1" data-factor="vis"><i class="bi bi-eye" style="font-size:2rem;"></i><div style="font-size:0.9rem;">能见度</div></button>
+                    </div>
+                    <!-- 中间详细数据区 -->
+                    <div class="seven-days-detail flex-grow-1 d-flex flex-column align-items-center justify-content-center" style="min-width: 320px; max-width: 600px;">
+                        <!-- 日期下方详细数据，默认显示第一天 -->
+                        <div th:each="day,idx : ${weatherdata.result.list}" th:id="'seven-day-detail-' + ${idx.index}"
+                             th:style="${idx.index == 0} ? '' : 'display:none;'" class="seven-day-detail-content w-100">
+                            <div class="mb-2 text-center" style="font-size:1.2rem;font-weight:bold;">
+                                <span th:text="${day.date + ' ' + day.week}"></span>
+                            </div>
+                            <div class="mb-2 text-center" style="font-size:1.1rem;">
+                                <span th:text="${day.weather}"></span>
+                                <img th:if="${day.weatherimg != null}" th:src="@{'/images/png/' + ${day.weatherimg}}" alt="天气图标" style="height: 28px; margin-left: 8px;"/>
+                            </div>
+                            <div class="row justify-content-center mb-2">
+                                <div class="col-4"><strong>实时温度:</strong> <span class="real-temp" th:text="${day.real}"></span></div>
+                                <div class="col-4"><strong>最低:</strong> <span class="lowest-temp" th:text="${day.lowest}"></span></div>
+                                <div class="col-4"><strong>最高:</strong> <span class="highest-temp" th:text="${day.highest}"></span></div>
+                            </div>
+                            <div class="row justify-content-center mb-2">
+                                <div class="col-4"><strong>风速:</strong> <span class="windspeed" th:text="${day.windspeed}"></span></div>
+                                <div class="col-4"><strong>湿度:</strong> <span class="humidity" th:text="${day.humidity}"></span></div>
+                                <div class="col-4"><strong>降水量:</strong> <span class="pcpn" th:text="${day.pcpn}"></span></div>
+                            </div>
+                            <div class="row justify-content-center mb-2">
+                                <div class="col-4"><strong>紫外线:</strong> <span class="uv_index" th:text="${day.uv_index}"></span></div>
+                                <div class="col-4"><strong>能见度:</strong> <span class="vis" th:text="${day.vis}"></span></div>
+                            </div>
+                            <div class="mt-2 text-center" th:if="${day.tips != null}"><strong>生活建议:</strong> <span th:text="${day.tips}"></span></div>
+                            <div class="mt-2 text-center" th:if="${day.poem != null and !#strings.isEmpty(day.poem)}">&ldquo;<span th:text="${day.poem}"></span>&rdquo;</div>
+                        </div>
+                        <!-- 折线图区域 -->
+                        <div class="seven-days-chart-area w-100 d-flex justify-content-center align-items-center mt-3" style="min-height:220px; display:none;">
+                            <canvas id="sevenDaysChart" width="420" height="180"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 只在结果界面显示AI助手按钮和弹窗 -->
+        <div id="ai-assistant-btn" style="display:none; position:fixed; right:32px; bottom:32px; z-index:1000; background:var(--main-pink3); color:#fff; border-radius:50%; width:64px; height:64px; box-shadow:0 4px 16px rgba(0,0,0,0.18); display:flex; align-items:center; justify-content:center; font-size:2rem; cursor:pointer;">
+        🤖
+        </div>
+        <div id="ai-assistant-modal" style="display:none; position:fixed; right:112px; bottom:112px; z-index:1001; background:#fff; color:var(--text-main); border-radius:18px; box-shadow:0 8px 32px rgba(0,0,0,0.18); padding:2rem; min-width:320px; max-width:420px; max-height:60vh; overflow:auto;">
+            <div style="font-weight:bold; font-size:1.2rem; margin-bottom:1rem;">AI天气分析助手</div>
+            <div id="ai-assistant-content" style="white-space:pre-line; font-size:1.05rem;"></div>
+            <button id="ai-assistant-close" style="margin-top:1.5rem; float:right; background:var(--main-pink3); color:#fff; border:none; border-radius:8px; padding:0.5em 1.2em; cursor:pointer;">关闭</button>
+        </div>
+    </div>
+    <!-- 图表弹窗区域 -->
+    <div id="sevenDaysChartModal" class="seven-days-chart-modal" style="display:none;">
+        <button class="seven-days-chart-close" onclick="document.getElementById('sevenDaysChartModal').style.display='none'">&times;</button>
+        <canvas id="sevenDaysChart" width="420" height="180"></canvas>
+    </div>
+</div>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    window.provinceCityMap = [[${provinceCityMap}]];
+    window.provinceListData = [[${provinceListData}]];
+    /*]]>*/
+
+    // 高德IP定位自动填充城市
+    document.addEventListener('DOMContentLoaded', function() {
+        // 只在查询界面执行
+        if (document.getElementById('queryView')) {
+            fetch('https://restapi.amap.com/v3/ip?key=efb0dec50dc30afccaa0903e671a058b&output=json')
+                .then(res => res.json())
+                .then(data => {
+                    console.log('高德IP定位返回:', data);
+                    if (data.status === '1' && data.city) {
+                        const city = data.city;
+                        // 弹窗询问
+                        if (confirm(`你所在的地区是 ${city}，是否默认使用该地区进行天气查询？`)) {
+                            // 自动填入城市下拉框
+                            const citySelect = document.getElementById('cityId');
+                            if (citySelect) {
+                                for (let i = 0; i < citySelect.options.length; i++) {
+                                    if (citySelect.options[i].text === city) {
+                                        citySelect.selectedIndex = i;
+                                        // 触发下拉框变更事件（如有联动）
+                                        citySelect.dispatchEvent(new Event('change'));
+                                        // 同步显示到按钮
+                                        const cityOptionText = document.getElementById('cityOptionText');
+                                        if (cityOptionText) cityOptionText.innerText = city;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        alert('高德IP定位失败: ' + (data.info || JSON.stringify(data)));
+                    }
+                })
+                .catch(e => {
+                    alert('高德IP定位请求异常: ' + e);
+                });
+        }
+    });
+
+    // 禁止未选天数时查询
+    document.addEventListener('DOMContentLoaded', function() {
+        var queryBtn = document.getElementById('forecastSemicircle');
+        if (queryBtn) {
+            queryBtn.addEventListener('click', function(e) {
+                var type = document.getElementById('type').value;
+                if (!type) {
+                    alert('请选择天数');
+                    e.stopPropagation();
+                    e.preventDefault();
+                    return false;
+                }
+            }, true);
+        }
+    });
+
+    // 只在结果界面显示AI助手按钮
+    if (document.getElementById('resultView')) {
+        document.getElementById('ai-assistant-btn').style.display = 'flex';
+        let aiModal = document.getElementById('ai-assistant-modal');
+        let aiBtn = document.getElementById('ai-assistant-btn');
+        let aiContent = document.getElementById('ai-assistant-content');
+        let aiClose = document.getElementById('ai-assistant-close');
+        let aiResultCache = null; // 缓存AI分析结果
+        aiBtn.onclick = function() { 
+            aiModal.style.display = 'block';
+            if (aiResultCache) {
+                aiContent.innerHTML = aiResultCache;
+            }
+        };
+        aiClose.onclick = function() { aiModal.style.display = 'none'; };
+        // 自动获取天气数据并请求AI分析
+        let weatherData = '';
+        try {
+            // 优先用window.weatherdata.result结构
+            if (window.weatherdata && window.weatherdata.result) {
+                let w = window.weatherdata.result;
+                weatherData =
+                    '城市: ' + (w.province || '') + ' ' + (w.area || '') + '\n' +
+                    '日期: ' + (w.date || '') + ' ' + (w.week || '') + '\n' +
+                    '天气: ' + (w.weather || '') + '\n' +
+                    '实时温度: ' + (w.real || '') + '\n' +
+                    '最低: ' + (w.lowest || '') + '\n' +
+                    '最高: ' + (w.highest || '') + '\n' +
+                    '风向: ' + (w.wind || '') + '\n' +
+                    '风速: ' + (w.windspeed || '') + '\n' +
+                    '风力: ' + (w.windsc || '') + '\n' +
+                    '湿度: ' + (w.humidity || '') + '\n' +
+                    '降水量: ' + (w.pcpn || '') + '\n' +
+                    '紫外线指数: ' + (w.uv_index || '') + '\n' +
+                    '能见度: ' + (w.vis || '') + '\n' +
+                    '日出: ' + (w.sunrise || '') + '\n' +
+                    '日落: ' + (w.sunset || '') + '\n' +
+                    '月升: ' + (w.moonrise || '') + '\n' +
+                    '月落: ' + (w.moondown || '');
+            } else {
+                // 兜底：从页面抓取主要字段
+                let main = document.querySelector('.info-tab-content[data-group="main"]');
+                if (main) weatherData += main.innerText + '\n';
+                let temp = document.querySelector('.info-tab-content[data-group="temp"]');
+                if (temp) weatherData += temp.innerText + '\n';
+                let wind = document.querySelector('.info-tab-content[data-group="wind"]');
+                if (wind) weatherData += wind.innerText + '\n';
+                let hum = document.querySelector('.info-tab-content[data-group="humidity"]');
+                if (hum) weatherData += hum.innerText + '\n';
+                let astro = document.querySelector('.info-tab-content[data-group="astro"]');
+                if (astro) weatherData += astro.innerText + '\n';
+            }
+        } catch(e) {}
+        if (weatherData) {
+            aiContent.innerText = 'AI分析中...';
+            fetch('/api/ai-analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ weatherInfo: weatherData })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.result) {
+                    aiResultCache = window.marked ? marked.parse(data.result) : data.result;
+                    aiContent.innerHTML = aiResultCache;
+                } else if (data.error) {
+                    aiResultCache = 'AI分析失败：' + (data.detail || data.error);
+                    aiContent.innerText = aiResultCache;
+                } else {
+                    aiResultCache = 'AI未能返回分析结果。';
+                    aiContent.innerText = aiResultCache;
+                }
+            })
+            .catch(e => {
+                aiResultCache = 'AI分析失败：' + e;
+                aiContent.innerText = aiResultCache;
+            });
+        } else {
+            aiResultCache = '未能获取天气数据，无法分析。';
+            aiContent.innerText = aiResultCache;
+        }
+    }
+</script>
+<script>
+// 1天界面tab切换功能
+(function() {
+  if (document.getElementById('result1View')) {
+    const tabs = document.querySelectorAll('#result1View .info-tab');
+    const contents = document.querySelectorAll('#result1View .info-tab-content');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', function() {
+        // 移除所有tab的active
+        tabs.forEach(t => t.classList.remove('active'));
+        // 隐藏所有内容
+        contents.forEach(c => c.classList.remove('active'));
+        // 当前tab高亮
+        this.classList.add('active');
+        // 显示对应内容
+        const group = this.getAttribute('data-group');
+        document.querySelector(`#result1View .info-tab-content[data-group="${group}"]`).classList.add('active');
+      });
+    });
+  }
+})();
+</script>
+<script>
+// 随机视频文件名列表
+const weatherVideos = [
+  'mai.mp4','wu.mp4','dawu.mp4','shachenbao.mp4','yangsha.mp4','fuchen.mp4','bingbao.mp4','yujiaxue.mp4','xue.mp4','xiaoxue.mp4','zhongxue.mp4','baoxue.mp4','daxue.mp4','dongyu.mp4','tedabaoyu.mp4','dabaoyu.mp4','yu.mp4','zhenyu.mp4','xiaoyu.mp4','zhongyu.mov','baoyu.mp4','dayu.mp4','leizhenyu.mp4','duoyun.mp4','qing.mp4','yin.mp4'
+];
+function getRandomVideo() {
+  const idx = Math.floor(Math.random() * weatherVideos.length);
+  return '/videos/' + weatherVideos[idx];
+}
+// 查询界面
+const randomVideoEl = document.getElementById('randomWeatherVideo');
+if(randomVideoEl) {
+  randomVideoEl.src = getRandomVideo();
+}
+</script>
+<script>
+// 温度图表绘制功能
+function drawTemperatureChart() {
+    const canvas = document.getElementById('temperatureChart');
+    if (!canvas) {
+        console.log('Canvas not found');
+        return;
+    }
+    
+    // 获取温度数据 - 使用原生JavaScript方法
+    const tempContent = document.querySelector('.info-tab-content[data-group="temp"]');
+    if (!tempContent) {
+        console.log('Temperature content not found');
+        return;
+    }
+    
+    // 使用原生JavaScript获取温度数据
+    const tempDivs = tempContent.querySelectorAll('div');
+    let realTemp, lowestTemp, highestTemp;
+    
+    tempDivs.forEach(div => {
+        const label = div.querySelector('.detail-label');
+        if (label) {
+            const value = div.querySelector('span:not(.detail-label)');
+            if (value) {
+                if (label.textContent.includes('实时温度')) {
+                    realTemp = parseInt(value.textContent);
+                } else if (label.textContent.includes('最低')) {
+                    lowestTemp = parseInt(value.textContent);
+                } else if (label.textContent.includes('最高')) {
+                    highestTemp = parseInt(value.textContent);
+                }
+            }
+        }
+    });
+    
+    console.log('Temperature data:', { realTemp, lowestTemp, highestTemp });
+    
+    if (isNaN(realTemp) || isNaN(lowestTemp) || isNaN(highestTemp)) {
+        console.log('Invalid temperature data');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['最低', '实时', '最高'],
+            datasets: [{
+                label: '温度 (°C)',
+                data: [lowestTemp, realTemp, highestTemp],
+                backgroundColor: [
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(255, 206, 86, 0.8)'
+                ],
+                borderColor: [
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(255, 206, 86, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '温度 (°C)'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+// 当温度信息tab被点击时绘制图表
+document.addEventListener('DOMContentLoaded', function() {
+    const tempTab = document.querySelector('.info-tab[data-group="temp"]');
+    if (tempTab) {
+        tempTab.addEventListener('click', function() {
+            setTimeout(drawTemperatureChart, 100);
+        });
+    }
+    
+    // 如果默认显示温度信息，立即绘制图表
+    if (document.querySelector('.info-tab[data-group="temp"].active')) {
+        setTimeout(drawTemperatureChart, 100);
+    }
+});
+</script>
+<script>
+// 7天界面交互与折线图
+(function() {
+    // 切换顶部日期tab
+    const dayTabs = document.querySelectorAll('.seven-day-tab');
+    const dayDetails = document.querySelectorAll('.seven-day-detail-content');
+    let currentDayIdx = 0;
+    dayTabs.forEach((tab, idx) => {
+        tab.addEventListener('click', function() {
+            dayTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            dayDetails.forEach((d, i) => d.style.display = (i === idx ? '' : 'none'));
+            currentDayIdx = idx;
+        });
+    });
+
+    // 气象要素按钮与折线图
+    const factorBtns = document.querySelectorAll('.icon-btn');
+    let currentFactor = 'real';
+    const chartModal = document.getElementById('sevenDaysChartModal');
+    let chartInstance = null;
+    factorBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            factorBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentFactor = btn.getAttribute('data-factor');
+            // 先清空canvas
+            const canvas = document.getElementById('sevenDaysChart');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            drawSevenDaysChart(currentFactor);
+            if(chartModal) chartModal.style.display = 'flex';
+        });
+    });
+
+    // 默认激活实时温度按钮并显示折线图弹窗
+    if (factorBtns.length > 0) {
+        factorBtns[0].classList.add('active');
+        drawSevenDaysChart('real');
+        if(chartModal) chartModal.style.display = 'flex';
+    }
+
+    // 解析7天数据
+    function getSevenDaysData() {
+        const days = [];
+        document.querySelectorAll('.seven-day-detail-content').forEach(detail => {
+            days.push({
+                real: parseFloat(detail.querySelector('.real-temp')?.textContent) || 0,
+                lowest: parseFloat(detail.querySelector('.lowest-temp')?.textContent) || 0,
+                highest: parseFloat(detail.querySelector('.highest-temp')?.textContent) || 0,
+                windspeed: parseFloat(detail.querySelector('.windspeed')?.textContent) || 0,
+                humidity: parseFloat(detail.querySelector('.humidity')?.textContent) || 0,
+                pcpn: parseFloat(detail.querySelector('.pcpn')?.textContent) || 0,
+                uv_index: parseFloat(detail.querySelector('.uv_index')?.textContent) || 0,
+                vis: parseFloat(detail.querySelector('.vis')?.textContent) || 0,
+            });
+        });
+        return days;
+    }
+
+    // 绘制折线图
+    function drawSevenDaysChart(factor) {
+        const days = getSevenDaysData();
+        const labels = Array.from({length: days.length}, (_, i) => `第${i+1}天`);
+        const data = days.map(d => d[factor]);
+        const canvas = document.getElementById('sevenDaysChart');
+        if (!canvas) return;
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: factorLabel(factor),
+                    data,
+                    fill: false,
+                    borderColor: 'rgba(54, 162, 235, 0.9)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.3)',
+                    tension: 0.3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    }
+    function factorLabel(factor) {
+        switch(factor) {
+            case 'real': return '实时温度(°C)';
+            case 'lowest': return '最低温度(°C)';
+            case 'highest': return '最高温度(°C)';
+            case 'windspeed': return '风速';
+            case 'humidity': return '湿度';
+            case 'pcpn': return '降水量';
+            case 'uv_index': return '紫外线指数';
+            case 'vis': return '能见度';
+            default: return '';
+        }
+    }
+    // 默认不显示图表弹窗
+    // 已在上方根据factorBtns[0]激活时显示
+})();
+</script>
+<script>
+// 统一半圆形视频切换逻辑
+document.addEventListener('DOMContentLoaded', function() {
+    // 统一半圆形视频切换逻辑
+    const weatherVideo = document.getElementById('weatherVideo');
+    if (document.getElementById('result1View')) {
+        // 1天界面
+        if (weatherVideo) {
+            const src = '/videos/' + (window.weatherGifPinyin || 'qing') + '.mp4';
+            weatherVideo.src = src;
+            console.log('[半圆视频-1天] src:', src);
+        }
+    } else if (document.getElementById('result7View')) {
+        // 7天界面
+        const dayTabs = document.querySelectorAll('.seven-day-tab');
+        function setVideoByIdx(idx) {
+            // 获取当前天的weatherimg或pinyin
+            const day = window.weatherdata?.result?.list?.[idx];
+            let pinyin = day?.weatherGifPinyin || day?.weatherimg || 'qing';
+            if (pinyin.endsWith('.png')) pinyin = pinyin.replace('.png', '');
+            if (pinyin.endsWith('.mp4')) pinyin = pinyin.replace('.mp4', '');
+            const src = '/videos/' + pinyin + '.mp4';
+            if (weatherVideo) weatherVideo.src = src;
+            console.log(`[半圆视频-7天] 当前选中第${idx+1}天，src:`, src, 'day:', day);
+        }
+        // 默认显示第0天
+        setVideoByIdx(0);
+        dayTabs.forEach((tab, idx) => {
+            tab.addEventListener('click', function() {
+                setVideoByIdx(idx);
+            });
+        });
+    }
+
+    // 统一AI助手数据注入逻辑
+    const aiBtn = document.getElementById('ai-assistant-btn');
+    const aiModal = document.getElementById('ai-assistant-modal');
+    const aiContent = document.getElementById('ai-assistant-content');
+    const aiClose = document.getElementById('ai-assistant-close');
+    let aiResultCache = null;
+    if (aiBtn && aiModal && aiContent && aiClose) {
+        aiBtn.onclick = function() {
+            aiModal.style.display = 'block';
+            if (aiResultCache) {
+                aiContent.innerHTML = aiResultCache;
+                return;
+            }
+            let weatherData = '';
+            if (document.getElementById('result1View')) {
+                // 1天界面，原有逻辑
+                let w = window.weatherdata?.result;
+                if (w) {
+                    weatherData =
+                        '城市: ' + (w.province || '') + ' ' + (w.area || '') + '\n' +
+                        '日期: ' + (w.date || '') + ' ' + (w.week || '') + '\n' +
+                        '天气: ' + (w.weather || '') + '\n' +
+                        '实时温度: ' + (w.real || '') + '\n' +
+                        '最低: ' + (w.lowest || '') + '\n' +
+                        '最高: ' + (w.highest || '') + '\n' +
+                        '风向: ' + (w.wind || '') + '\n' +
+                        '风速: ' + (w.windspeed || '') + '\n' +
+                        '风力: ' + (w.windsc || '') + '\n' +
+                        '湿度: ' + (w.humidity || '') + '\n' +
+                        '降水量: ' + (w.pcpn || '') + '\n' +
+                        '紫外线指数: ' + (w.uv_index || '') + '\n' +
+                        '能见度: ' + (w.vis || '') + '\n' +
+                        '日出: ' + (w.sunrise || '') + '\n' +
+                        '日落: ' + (w.sunset || '') + '\n' +
+                        '月升: ' + (w.moonrise || '') + '\n' +
+                        '月落: ' + (w.moondown || '');
+                }
+            } else if (document.getElementById('result7View')) {
+                // 7天界面，注入所有天数据并标记当前选中天
+                const dayTabs = document.querySelectorAll('.seven-day-tab');
+                let currentIdx = 0;
+                dayTabs.forEach((tab, idx) => {
+                    if (tab.classList.contains('active')) currentIdx = idx;
+                });
+                const days = window.weatherdata?.result?.list || [];
+                weatherData = '【7天天气数据】\n';
+                days.forEach((d, i) => {
+                    weatherData += (i === currentIdx ? '【当前选中】' : '') +
+                        `第${i+1}天: 日期:${d.date} ${d.week} 天气:${d.weather} 实时温度:${d.real} 最低:${d.lowest} 最高:${d.highest} 风速:${d.windspeed} 湿度:${d.humidity} 降水量:${d.pcpn} 紫外线:${d.uv_index} 能见度:${d.vis}` + '\n';
+                });
+                console.log('[AI助手-7天] 当前选中第', currentIdx+1, '天，weatherData:', weatherData, 'days:', days);
+            }
+            console.log('[AI助手] weatherData:', weatherData);
+            aiContent.innerText = 'AI分析中...';
+            fetch('/api/ai-analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ weatherInfo: weatherData })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.result) {
+                    aiResultCache = window.marked ? marked.parse(data.result) : data.result;
+                    aiContent.innerHTML = aiResultCache;
+                } else if (data.error) {
+                    aiResultCache = 'AI分析失败：' + (data.detail || data.error);
+                    aiContent.innerText = aiResultCache;
+                } else {
+                    aiResultCache = 'AI未能返回分析结果。';
+                    aiContent.innerText = aiResultCache;
+                }
+            })
+            .catch(e => {
+                aiResultCache = 'AI分析失败：' + e;
+                aiContent.innerText = aiResultCache;
+            });
+        };
+        aiClose.onclick = function() { aiModal.style.display = 'none'; };
+    }
+});
+</script>
+<script>
+// 一天界面半圆点击返回查询界面
+var resultSemicircle = document.querySelector('.result-semicircle');
+if (resultSemicircle) {
+    resultSemicircle.addEventListener('click', function() {
+        // system日志
+        console.log('[system] 回到查询界面并跳转');
+        // 跳转回查询界面，清除查询参数
+        window.location.replace('http://localhost:7070/getWeatherThy');
+    });
+}
+</script>
+</body>
+</html> 
