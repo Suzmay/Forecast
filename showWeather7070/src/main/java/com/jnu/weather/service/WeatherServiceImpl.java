@@ -16,12 +16,9 @@ public class WeatherServiceImpl implements WeatherService {
 
     @Autowired
     RestTemplate restTemplate;
-    
-    @Autowired
-    RestTemplate loadBalancedRestTemplate;
 
     public WeatherResponse accessThree(String city){
-        String url="https://apis.tianapi.com/tianqi/index?key="+"1066d2238af963b2fb85e643abbcffb1"+"&city=" + city + "&type=1";
+        String url="https://apis.tianapi.com/tianqi/index?key="+"b885bb2877f309169fbdda5f0a3d9795"+"&city=" + city + "&type=1";
         return restTemplate.getForObject(url, WeatherResponse.class);
     }
 
@@ -88,7 +85,32 @@ public class WeatherServiceImpl implements WeatherService {
         
         if (weatherResponse==null){
             System.out.println("[Service] 缓存未命中，从API拉取数据: " + city + " (type: " + type + ")");
-            String url="https://apis.tianapi.com/tianqi/index?key="+"1066d2238af963b2fb85e643abbcffb1"+"&city=" + city + "&type=" + type;
+        } else {
+            // 检查缓存数据是否过期（基于日期）
+            if (weatherResponse.getResult() != null && weatherResponse.getResult().getDate() != null) {
+                try {
+                    java.time.LocalDate cacheDate = java.time.LocalDate.parse(weatherResponse.getResult().getDate());
+                    java.time.LocalDate currentDate = java.time.LocalDate.now();
+                    
+                    // 如果缓存日期不是今天，且不是未来日期，则认为是过期数据
+                    if (!cacheDate.equals(currentDate) && cacheDate.isBefore(currentDate)) {
+                        System.out.println("[Service] 缓存数据已过期，缓存日期: " + cacheDate + ", 当前日期: " + currentDate + ", 重新从API拉取数据");
+                        weatherResponse = null;
+                        // 删除过期缓存
+                        redisTemplate.opsForHash().delete("weatherData", cacheKey);
+                    }
+                } catch (Exception e) {
+                    System.out.println("[Service] 解析缓存日期失败: " + weatherResponse.getResult().getDate() + ", 重新从API拉取数据");
+                    weatherResponse = null;
+                    // 删除无效缓存
+                    redisTemplate.opsForHash().delete("weatherData", cacheKey);
+                }
+            }
+        }
+        
+        if (weatherResponse==null){
+            System.out.println("[Service] 缓存未命中或已过期，从API拉取数据: " + city + " (type: " + type + ")");
+            String url="https://apis.tianapi.com/tianqi/index?key="+"b885bb2877f309169fbdda5f0a3d9795"+"&city=" + city + "&type=" + type;
             weatherResponse=restTemplate.getForObject(url, WeatherResponse.class);
             
             // 设置诗句
@@ -105,6 +127,15 @@ public class WeatherServiceImpl implements WeatherService {
             }
             
             System.out.println("[Service] API返回内容: " + weatherResponse);
+            if (weatherResponse != null && weatherResponse.getResult() != null) {
+                System.out.println("[Service] Result详情: " + weatherResponse.getResult());
+                if ("7".equals(type)) {
+                    System.out.println("[Service] 7天查询 - list字段: " + weatherResponse.getResult().getList());
+                    if (weatherResponse.getResult().getList() != null) {
+                        System.out.println("[Service] 7天查询 - list大小: " + weatherResponse.getResult().getList().size());
+                    }
+                }
+            }
             // 缓存数据，根据类型设置不同的过期时间
             redisTemplate.opsForHash().put("weatherData", cacheKey, weatherResponse);
             Duration expiration = getCacheExpiration(type);
@@ -127,6 +158,30 @@ public class WeatherServiceImpl implements WeatherService {
         if (weatherResponse==null){
             synchronized (this){
                 weatherResponse=(WeatherResponse) redisTemplate.opsForHash().get("weatherData", cacheKey);
+                if (weatherResponse==null){
+                } else {
+                    // 检查缓存数据是否过期（基于日期）
+                    if (weatherResponse.getResult() != null && weatherResponse.getResult().getDate() != null) {
+                        try {
+                            java.time.LocalDate cacheDate = java.time.LocalDate.parse(weatherResponse.getResult().getDate());
+                            java.time.LocalDate currentDate = java.time.LocalDate.now();
+                            
+                            // 如果缓存日期不是今天，且不是未来日期，则认为是过期数据
+                            if (!cacheDate.equals(currentDate) && cacheDate.isBefore(currentDate)) {
+                                System.out.println("[Service] 缓存数据已过期，缓存日期: " + cacheDate + ", 当前日期: " + currentDate + ", 重新从API拉取数据");
+                                weatherResponse = null;
+                                // 删除过期缓存
+                                redisTemplate.opsForHash().delete("weatherData", cacheKey);
+                            }
+                        } catch (Exception e) {
+                            System.out.println("[Service] 解析缓存日期失败: " + weatherResponse.getResult().getDate() + ", 重新从API拉取数据");
+                            weatherResponse = null;
+                            // 删除无效缓存
+                            redisTemplate.opsForHash().delete("weatherData", cacheKey);
+                        }
+                    }
+                }
+                
                 if (weatherResponse==null){
                     System.out.println("[Service] 缓存未命中，从API拉取数据: " + city + " (type: " + type + ")");
                     String url="https://apis.tianapi.com/tianqi/index?key="+"1066d2238af963b2fb85e643abbcffb1"+"&city=" + city + "&type=" + type;

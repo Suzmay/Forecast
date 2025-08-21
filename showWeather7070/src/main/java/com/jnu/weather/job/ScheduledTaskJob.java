@@ -1,13 +1,11 @@
 package com.jnu.weather.job;
 
+import com.jnu.weather.client.CityServiceClient;
 import com.jnu.weather.po.City;
 import com.jnu.weather.service.WeatherService;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 
@@ -16,7 +14,7 @@ public class ScheduledTaskJob {
     @Autowired
     WeatherService weatherService;
     @Autowired
-    RestTemplate loadBalancedRestTemplate;
+    CityServiceClient cityServiceClient;
 
     /**
      * 注释掉定时任务，改为按需加载策略
@@ -26,10 +24,8 @@ public class ScheduledTaskJob {
     @Scheduled(cron="0/15 * * * * ?")
     public void cacheWeatherData(){
         try {
-            // 通过负载均衡调用城市服务获取城市列表
-            ObjectMapper objectMapper = new ObjectMapper();
-            Object cityListObj = loadBalancedRestTemplate.getForObject("http://GETCITYLIST8080/api/city/FINDALL", Object.class);
-            List<City> cityList = objectMapper.convertValue(cityListObj, new TypeReference<List<City>>() {});
+            // 使用Feign客户端调用城市服务获取城市列表
+            List<City> cityList = cityServiceClient.findAllCities();
             
             System.out.println("[ScheduledTask] 开始缓存天气数据，城市数量: " + cityList.size());
             

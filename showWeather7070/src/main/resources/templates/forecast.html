@@ -19,9 +19,10 @@
 </head>
 <body>
 <script th:utext="'window.weatherdata = ' + ${weatherdataJson} + ';'" ></script>
+<script th:if="${weatherGifPinyin != null}" th:utext="'window.weatherGifPinyin = &quot;' + ${weatherGifPinyin} + '&quot;;'" ></script>
 <div class="forecast-container">
     <!-- 查询界面 -->
-    <div id="queryView" th:if="${weatherdata == null}">
+    <div id="queryView" th:if="${weatherdata == null}" style="display: block;">
         <div class="forecast-header" id="queryHeader">
             <div class="option city-option" id="cityOption" th:classappend="${selectedCityName} != '' ? ' selected' : ''">
                 <span th:text="${selectedCityName} != '' ? ${selectedCityName} : '城市'" id="cityOptionText"></span>
@@ -60,7 +61,7 @@
         </div>
     </div>
     <!-- 结果界面 -->
-    <div id="resultView" th:if="${weatherdata != null}">
+    <div id="resultView" th:if="${weatherdata != null}" style="display: block;">
         <!-- 复制一份半圆和标题到结果界面 -->
         <div class="forecast-title-on-semicircle result-title">天穹</div>
         <!-- 统一半圆形部件 -->
@@ -125,10 +126,10 @@
                 <div class="fixed-days">天数：1天</div>
             </div>
         </div>
-        <div id="result7View" th:if="${weatherdata.result != null and selectedType == '7' and weatherdata.result.list != null}">
+        <div id="result7View" th:if="${weatherdata.result != null and selectedType == '7'}">
             <div class="seven-days-layout d-flex flex-column align-items-center" style="min-height: 500px;">
                 <!-- 顶部日期和天气选项卡 -->
-                <div class="seven-days-top d-flex justify-content-center align-items-center mb-3" style="gap: 1.2rem;">
+                <div class="seven-days-top d-flex justify-content-center align-items-center mb-3" style="gap: 1.2rem;" th:if="${weatherdata.result.list != null}">
                     <div th:each="day,idx : ${weatherdata.result.list}" class="seven-day-tab" th:classappend="${idx.index == 0} ? 'active' : ''" th:data-idx="${idx.index}">
                         <div th:text="${day.date}" style="font-size: 1.05rem;"></div>
                         <div th:text="${day.week}" style="font-size: 0.95rem; color: var(--main-blue2);"></div>
@@ -137,6 +138,11 @@
                             <img th:if="${day.weatherimg != null}" th:src="@{'/images/png/' + ${day.weatherimg}}" alt="天气图标" style="height: 22px; margin-left: 6px;"/>
                         </div>
                     </div>
+                </div>
+                <!-- 如果没有7天数据，显示错误信息 -->
+                <div th:if="${weatherdata.result.list == null}" class="text-center p-4">
+                    <h4>暂无7天天气数据</h4>
+                    <p>抱歉，当前无法获取7天天气预报数据，请稍后再试。</p>
                 </div>
                 <div class="d-flex flex-row w-100 justify-content-center align-items-stretch" style="min-height: 350px;">
                     <!-- 左侧气象要素图标区 -->
@@ -151,7 +157,7 @@
                         <button class="icon-btn btn btn-light mb-1" data-factor="vis"><i class="bi bi-eye" style="font-size:2rem;"></i><div style="font-size:0.9rem;">能见度</div></button>
                     </div>
                     <!-- 中间详细数据区 -->
-                    <div class="seven-days-detail flex-grow-1 d-flex flex-column align-items-center justify-content-center" style="min-width: 320px; max-width: 600px;">
+                    <div class="seven-days-detail flex-grow-1 d-flex flex-column align-items-center justify-content-center" style="min-width: 320px; max-width: 600px;" th:if="${weatherdata.result.list != null}">
                         <!-- 日期下方详细数据，默认显示第一天 -->
                         <div th:each="day,idx : ${weatherdata.result.list}" th:id="'seven-day-detail-' + ${idx.index}"
                              th:style="${idx.index == 0} ? '' : 'display:none;'" class="seven-day-detail-content w-100">
@@ -230,7 +236,9 @@
                 })
                 .then(data => {
                     console.log('[IP定位] 高德API返回:', data);
+                    console.log('[IP定位] 详细数据:', JSON.stringify(data, null, 2));
                     
+                    // 检查数据有效性
                     if (data.status === '1' && data.city && typeof data.city === 'string' && data.city.trim() !== '') {
                         const city = data.city;
                         console.log('[IP定位] 检测到城市:', city);
@@ -300,7 +308,32 @@
                             info: data.info,
                             fullData: data
                         });
-                        // 不显示错误弹窗，静默失败
+                        
+                        // 尝试其他可能的数据格式
+                        let cityName = null;
+                        
+                        // 检查是否有其他城市字段
+                        if (data.adcode && typeof data.adcode === 'string' && data.adcode.length > 0) {
+                            console.log('[IP定位] 尝试使用adcode:', data.adcode);
+                            // 这里可以添加adcode到城市名称的转换逻辑
+                        }
+                        
+                        // 检查是否有省份信息
+                        if (data.province && typeof data.province === 'string' && data.province.length > 0) {
+                            console.log('[IP定位] 检测到省份:', data.province);
+                            cityName = data.province;
+                        }
+                        
+                        // 如果找到了可用的城市信息，尝试使用
+                        if (cityName) {
+                            console.log('[IP定位] 使用备用城市信息:', cityName);
+                            if (confirm(`检测到您所在的地区是 ${cityName}，是否默认使用该地区进行天气查询？`)) {
+                                // 这里可以添加城市匹配逻辑
+                                console.log('[IP定位] 用户确认使用备用城市信息');
+                            }
+                        } else {
+                            console.log('[IP定位] 无法获取有效的城市信息，静默失败');
+                        }
                     }
                 })
                 .catch(e => {

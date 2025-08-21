@@ -1,23 +1,53 @@
+server:
+  port: 7070
+
 spring:
   application:
-    name: showWeather7070
-  redis:
-    host: 127.0.0.1
-    port: 6379
-
+    name: SHOWWEATHER7070
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: root
-    url: jdbc:mysql://localhost:3306/jpa?characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://localhost:3306/weather?characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     password: 123456
-
   jpa:
-    show-sql: true  #打印输出sql执行信息
+    show-sql: true
     hibernate:
       ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        format_sql: true
+  redis:
+    host: localhost
+    port: 6379
+    database: 0
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: -1ms
+        max-idle: 8
+        min-idle: 0
 
-server:
-  port: 7070
+# Feign配置
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 5000
+        loggerLevel: basic
+  compression:
+    request:
+      enabled: true
+    response:
+      enabled: true
+
+# 日志配置
+logging:
+  level:
+    com.jnu.weather.client: DEBUG
+    feign: DEBUG
 
 eureka:
   client:
@@ -25,3 +55,6 @@ eureka:
       defaultZone: http://localhost:8888/eureka/,http://localhost:9999/eureka/
     register-with-eureka: true
     fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}

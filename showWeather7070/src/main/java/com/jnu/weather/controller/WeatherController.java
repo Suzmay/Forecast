@@ -1,21 +1,22 @@
 package com.jnu.weather.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jnu.weather.client.CityServiceClient;
+import com.jnu.weather.client.ProvinceServiceClient;
 import com.jnu.weather.domain.WeatherResponse;
 import com.jnu.weather.po.City;
 import com.jnu.weather.po.Province;
 import com.jnu.weather.service.WeatherService;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.thymeleaf.ThymeleafProperties;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.ModelAndView;
 import org.thymeleaf.spring5.view.ThymeleafViewResolver;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -29,7 +30,13 @@ public class WeatherController {
     @Autowired
     WeatherService weatherService;
     @Autowired
-    RestTemplate loadBalancedRestTemplate;
+    CityServiceClient cityServiceClient;
+    @Autowired
+    ProvinceServiceClient provinceServiceClient;
+    @Autowired
+    org.springframework.data.redis.core.RedisTemplate redisTemplate;
+    
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final Map<String, String> weatherIconMap = new HashMap<>();
     static {
@@ -63,24 +70,22 @@ public class WeatherController {
 
     @RequestMapping("/getWeatherThy")
     public ModelAndView getWeatherByCity(Model model, @RequestParam(value = "city", required = false) String city, @RequestParam(value = "type", required = false, defaultValue = "") String type) {
+        // 检查并清除过期缓存
+        clearExpiredCache();
+        
         try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            
-            // 通过负载均衡调用城市服务
-            Object cityListObj = loadBalancedRestTemplate.getForObject("http://GETCITYLIST8080/api/city/FINDALL", Object.class);
-            List<City> cityList = objectMapper.convertValue(cityListObj, new TypeReference<List<City>>() {});
+            // 使用Feign客户端调用城市服务
+            List<City> cityList = cityServiceClient.findAllCities();
             model.addAttribute("cityList", cityList);
             model.addAttribute("selectedCityId", city);
             model.addAttribute("selectedType", type);
 
-            // 通过负载均衡调用省份服务
-            Object provinceListObj = loadBalancedRestTemplate.getForObject("http://GETPROVINCELIST8090/api/province/FINDALL", Object.class);
-            List<Province> provinceList = objectMapper.convertValue(provinceListObj, new TypeReference<List<Province>>() {});
+            // 使用Feign客户端调用省份服务
+            List<Province> provinceList = provinceServiceClient.findAllProvinces();
             model.addAttribute("provinceList", provinceList);
 
             // 省份-城市映射
-            Object allCitiesObj = loadBalancedRestTemplate.getForObject("http://GETCITYLIST8080/api/city/FINDALL", Object.class);
-            List<City> allCities = objectMapper.convertValue(allCitiesObj, new TypeReference<List<City>>() {});
+            List<City> allCities = cityServiceClient.findAllCities();
             System.out.println("[DEBUG] allCities size: " + allCities.size());
             Set<String> uniqueCityIds = new HashSet<>();
             for (City c : allCities) {
@@ -92,8 +97,7 @@ public class WeatherController {
             Map<String, List<City>> provinceCityMap = new HashMap<>();
             for (Province p : provinceList) {
                 String pid = p.getProvinceId();
-                Object citiesObj = loadBalancedRestTemplate.getForObject("http://GETCITYLIST8080/api/city/FINDALLBYFATHER?provinceId=" + pid, Object.class);
-                List<City> cities = objectMapper.convertValue(citiesObj, new TypeReference<List<City>>() {});
+                List<City> cities = cityServiceClient.findCitiesByProvince(pid);
                 System.out.println("[DEBUG] province " + pid + " city count: " + cities.size());
                 provinceCityMap.put(pid, cities);
             }
@@ -124,6 +128,23 @@ public class WeatherController {
             WeatherResponse weatherdata = null;
             if (city != null && !city.trim().isEmpty()) {
                 weatherdata = weatherService.accessThreeWithRedis(city, type);
+                System.out.println("[Controller] 获取到天气数据: " + weatherdata);
+                if (weatherdata != null) {
+                    System.out.println("[Controller] weatherdata不为null");
+                    if (weatherdata.getResult() != null) {
+                        System.out.println("[Controller] Result不为null: " + weatherdata.getResult());
+                        if ("7".equals(type)) {
+                            System.out.println("[Controller] 7天查询 - list字段: " + weatherdata.getResult().getList());
+                            if (weatherdata.getResult().getList() != null) {
+                                System.out.println("[Controller] 7天查询 - list大小: " + weatherdata.getResult().getList().size());
+                            }
+                        }
+                    } else {
+                        System.out.println("[Controller] Result为null");
+                    }
+                } else {
+                    System.out.println("[Controller] weatherdata为null");
+                }
                 model.addAttribute("weatherdata", weatherdata);
 
                 // 根据天气描述确定本地图标路径和gif拼音
@@ -139,8 +160,12 @@ public class WeatherController {
                 }
             }
             try {
-                model.addAttribute("weatherdataJson", weatherdata == null ? null : objectMapper.writeValueAsString(weatherdata));
+                String weatherdataJson = weatherdata == null ? null : objectMapper.writeValueAsString(weatherdata);
+                System.out.println("[Controller] weatherdataJson: " + weatherdataJson);
+                model.addAttribute("weatherdataJson", weatherdataJson);
             } catch (Exception e) {
+                System.out.println("[Controller] JSON序列化失败: " + e.getMessage());
+                e.printStackTrace();
                 model.addAttribute("weatherdataJson", null);
             }
             return new ModelAndView("forecast","cityList",cityList);
@@ -195,6 +220,109 @@ public class WeatherController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "AI分析异常", "detail", e.getMessage()));
+        }
+    }
+    
+    /**
+     * 手动清除所有天气缓存（用于调试）
+     */
+    @PostMapping("/api/clear-cache")
+    @ResponseBody
+    public ResponseEntity<?> clearAllCache() {
+        try {
+            System.out.println("[Cache] 手动清除所有缓存...");
+            redisTemplate.delete("weatherData");
+            System.out.println("[Cache] 所有缓存已清除");
+            return ResponseEntity.ok(Map.of("message", "缓存清除成功"));
+        } catch (Exception e) {
+            System.out.println("[Cache] 清除缓存失败: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "清除缓存失败", "detail", e.getMessage()));
+        }
+    }
+    
+    /**
+     * 检查并清除过期缓存
+     */
+    private void clearExpiredCache() {
+        try {
+            System.out.println("[Cache] 开始检查过期缓存...");
+            
+            // 获取所有缓存的天气数据
+            Map<Object, Object> allWeatherData = redisTemplate.opsForHash().entries("weatherData");
+            System.out.println("[Cache] 当前缓存数量: " + allWeatherData.size());
+            
+            if (allWeatherData.isEmpty()) {
+                System.out.println("[Cache] 没有缓存数据，跳过清理");
+                return;
+            }
+            
+            int expiredCount = 0;
+            int validCount = 0;
+            
+            for (Map.Entry<Object, Object> entry : allWeatherData.entrySet()) {
+                String cacheKey = (String) entry.getKey();
+                WeatherResponse weatherResponse = (WeatherResponse) entry.getValue();
+                
+                // 检查数据是否有效
+                if (weatherResponse == null || weatherResponse.getResult() == null) {
+                    System.out.println("[Cache] 发现无效数据，删除缓存: " + cacheKey);
+                    redisTemplate.opsForHash().delete("weatherData", cacheKey);
+                    expiredCount++;
+                    continue;
+                }
+                
+                // 检查数据完整性
+                boolean isValid = true;
+                String[] keyParts = cacheKey.split(":");
+                if (keyParts.length == 2) {
+                    String city = keyParts[0];
+                    String type = keyParts[1];
+                    
+                    // 检查7天天气数据的list字段
+                    if ("7".equals(type) && weatherResponse.getResult().getList() == null) {
+                        System.out.println("[Cache] 发现不完整的7天天气数据，删除缓存: " + cacheKey);
+                        isValid = false;
+                    }
+                    
+                    // 检查基本字段
+                    if (weatherResponse.getResult().getWeather() == null || 
+                        weatherResponse.getResult().getDate() == null) {
+                        System.out.println("[Cache] 发现缺少基本字段的数据，删除缓存: " + cacheKey);
+                        isValid = false;
+                    }
+                    
+                    // 检查数据日期是否过期
+                    if (weatherResponse.getResult().getDate() != null) {
+                        try {
+                            java.time.LocalDate cacheDate = java.time.LocalDate.parse(weatherResponse.getResult().getDate());
+                            java.time.LocalDate currentDate = java.time.LocalDate.now();
+                            
+                            // 如果缓存日期不是今天，且不是未来日期，则认为是过期数据
+                            if (!cacheDate.equals(currentDate) && cacheDate.isBefore(currentDate)) {
+                                System.out.println("[Cache] 发现过期数据，缓存日期: " + cacheDate + ", 当前日期: " + currentDate + ", 删除缓存: " + cacheKey);
+                                isValid = false;
+                            }
+                        } catch (Exception e) {
+                            System.out.println("[Cache] 解析日期失败: " + weatherResponse.getResult().getDate() + ", 删除缓存: " + cacheKey);
+                            isValid = false;
+                        }
+                    }
+                }
+                
+                if (!isValid) {
+                    redisTemplate.opsForHash().delete("weatherData", cacheKey);
+                    expiredCount++;
+                } else {
+                    validCount++;
+                }
+            }
+            
+            System.out.println("[Cache] 缓存清理完成 - 有效: " + validCount + ", 删除: " + expiredCount);
+            
+        } catch (Exception e) {
+            System.out.println("[Cache] 清理缓存时发生错误: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }
